@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+needs_cmd() {
+        hash $1 2>/dev/null || echo "missing command: $1"
+}
+
+perr() {
+  echo "$@" 1>&2
+}
+
+needs_cmd qemu-img
+needs_cmd 7z
+needs_cmd mkwinpeimg
+needs_cmd truncate
+needs_cmd sfdisk
+needs_cmd kpartx
+needs_cmd mkntfs
+
+declare -r windows_iso="$(pwd)/win10_x64.iso"
+declare -r unpacked_iso="$(pwd)/unpacked_iso"
+
+rm -fr $unpacked_iso
+7z x -o${unpacked_iso} $windows_iso
+
+if test -f winpe.iso; then
+        echo "winpe.iso already exists"
+else
+        mkwinpeimg --iso --windows-dir=${unpacked_iso} --start-script=start.cmd winpe.iso
+fi
+
+
+# builds a disk image to share with winpe.
+
+declare -r tempdisk="$(pwd)/tempdisk.img"
+
+mountdir=$(mktemp -d)
+rm -f $tempdisk
+truncate -s 10G $tempdisk
+sfdisk $tempdisk <<EOF
+,,7
+write
+EOF
+
+declare -r ntfs_part=$(sudo kpartx -l $tempdisk|awk ' /p1 : / {print $1}')
+sudo kpartx -a $tempdisk
+sleep 1
+sudo mkntfs -f /dev/mapper/$ntfs_part
+sudo mount /dev/mapper/$ntfs_part $mountdir
+sudo cp ${unpacked_iso}/sources/boot.wim $mountdir
+sudo cp ${unpacked_iso}/sources/install.wim $mountdir
+sudo 7z x -o${mountdir}/drivers virtio-win_amd64.vfd amd64/Win10
+sudo umount /dev/mapper/$ntfs_part
+sudo kpartx -d $tempdisk
+sudo chown $(id -u) $tempdisk 
+
+qemu-system-x86_64 -machine q35,accel=kvm,vmport=off -m 4G -smp $(($(nproc)/2)) -usb -device usb-tablet -device virtio-net-pci,netdev=net0 -netdev user,id=net0 -drive file=tempdisk.img,if=ide,index=0,media=disk,format=raw,cache=unsafe  -vnc :0 -cdrom ./winpe.iso -boot d -no-reboot
+
+declare -r patched_wims="$(pwd)/patched_wims"
+rm -rf ${patched_wims}
+7z x -o${patched_wims} $tempdisk
+cp ${patched_wims}/boot.wim ${patched_wims}/install.wim ${unpacked_iso}/sources
+cp autounattend.xml ${unpacked_iso}
+cp ei.cfg ${unpacked_iso}/sources
+mkisofs -b boot/etfsboot.com -no-emul-boot -iso-level 3 -udf -joliet -R -D -N -relaxed-filenames -allow-limited-size -o iso-with-drivers.iso ${unpacked_iso}
+
+
+qemu-img create -f qcow2 windows-vm.qcow2 20G
+./run-qemu -i windows-vm.qcow2 -d iso-with-drivers.iso
+./run-qemu -i windows-vm.qcow2
+
+qemu-img convert -O raw windows-vm.qcow2 windows-vm.img
+pigz windows-vm.img
