@@ -5,9 +5,9 @@ perr() {
 }
 
 usage() {
-  perr "usage: $0 -i image.qcow2 [-d cdrom.iso]"
+  perr "usage: $0 -i image.img [-d cdrom.iso]"
   perr ""
-  perr "  the image format is assumed to be qcow2"
+  perr "  the image format is assumed to be raw"
   exit 1
 }
 
@@ -41,7 +41,7 @@ cores=6
 #qemu-system-x86_64 -machine q35,accel=kvm,vmport=off -m 16G -smp $cores,sockets=1,cores=$cores,threads=1 \
 qemu-system-x86_64 -machine q35,accel=kvm,vmport=off -cpu host,hv_relaxed,hv_spinlocks=0x1fff,hv_vapic,hv_time -m 16G -smp $cores,sockets=1,cores=$cores,threads=1 \
   -object iothread,id=io1 -device virtio-blk-pci,drive=disk0,iothread=io1 \
-  -drive if=none,id=disk0,cache=unsafe,format=qcow2,aio=threads,file=$image \
+  -drive if=none,id=disk0,cache=unsafe,format=raw,aio=threads,file=$image \
   -device virtio-net-pci,netdev=net0 \
   -netdev 'user,id=net0,hostfwd=tcp::3389-:3389' -vnc :0 -usb -device usb-tablet $cdrom_args -no-reboot
   
