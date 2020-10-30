@@ -44,17 +44,19 @@ sfdisk $tempdisk <<EOF
 write
 EOF
 
-declare -r ntfs_part=$(sudo kpartx -l $tempdisk|awk ' /p1 : / {print $1}')
-sudo kpartx -a $tempdisk
+
+declare -r ntfs_disk=$(kpartx -l $tempdisk|awk ' /p1 : / {print $5}')
+declare -r ntfs_part=${ntfs_disk#/dev/}p1
+kpartx -u $ntfs_disk
 sleep 1
-sudo mkntfs -f /dev/mapper/$ntfs_part
-sudo mount /dev/mapper/$ntfs_part $mountdir
-sudo cp ${unpacked_iso}/sources/boot.wim $mountdir
-sudo cp ${unpacked_iso}/sources/install.wim $mountdir
-sudo 7z x -o${mountdir}/drivers virtio-win_amd64.vfd amd64/Win10
-sudo umount /dev/mapper/$ntfs_part
-sudo kpartx -d $tempdisk
-sudo chown $(id -u) $tempdisk 
+mkntfs -f /dev/mapper/$ntfs_part
+ntfs-3g /dev/mapper/$ntfs_part $mountdir
+cp ${unpacked_iso}/sources/boot.wim $mountdir
+cp ${unpacked_iso}/sources/install.wim $mountdir
+7z x -o${mountdir}/drivers virtio-win_amd64.vfd amd64/Win10
+umount /dev/mapper/$ntfs_part
+kpartx -d $tempdisk
+chown $(id -u) $tempdisk 
 
 qemu-system-x86_64 -machine q35,accel=kvm,vmport=off -m 4G -smp $(($(nproc)/2)) -usb -device usb-tablet -device virtio-net-pci,netdev=net0 -netdev user,id=net0 -drive file=tempdisk.img,if=ide,index=0,media=disk,format=raw,cache=unsafe  -vnc :0 -cdrom ./winpe.iso -boot d -no-reboot
 
@@ -62,8 +64,8 @@ declare -r patched_wims="$(pwd)/patched_wims"
 rm -rf ${patched_wims}
 7z x -o${patched_wims} $tempdisk
 cp ${patched_wims}/boot.wim ${patched_wims}/install.wim ${unpacked_iso}/sources
-cp autounattend-windows2016-trial.xml ${unpacked_iso}/autounattend.xml
-mkisofs -b boot/etfsboot.com -no-emul-boot -iso-level 3 -udf -joliet -R -D -N -relaxed-filenames -o iso-with-drivers.iso ${unpacked_iso}
+cp autounattend.xml ${unpacked_iso}/autounattend.xml
+mkisofs -b boot/etfsboot.com -no-emul-boot -iso-level 3 -allow-limited-size -udf -joliet -R -D -N -relaxed-filenames -o iso-with-drivers.iso ${unpacked_iso}
 
 
 qemu-img create -f raw windows-vm.img 20G
