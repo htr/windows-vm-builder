@@ -11,4 +11,5 @@ cp -a /shared/* .
 ./build
 mv windows-vm.img.gz /output
 
-exit 0
+chown -R $USERID:$GROUPID /output
+
