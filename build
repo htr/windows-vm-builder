@@ -20,6 +20,8 @@ needs_cmd kpartx
 needs_cmd mkntfs
 
 declare -r windows_iso="$(pwd)/17763.737.190906-2324.rs5_release_svc_refresh_SERVER_EVAL_x64FRE_en-us_1.iso"
+declare -r virtio_drivers="$(pwd)/virtio-win_amd64.vfd"
+
 declare -r unpacked_iso="$(pwd)/unpacked_iso"
 
 rm -fr $unpacked_iso

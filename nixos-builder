@@ -1,0 +1,14 @@
+#!/bin/sh
+
+nix-channel --add https://nixos.org/channels/nixos-20.09 nixpkgs
+nix-channel --update
+chmod a+rw /dev/kvm
+nix-env -i pigz qemu bash p7zip wimlib multipath-tools cdrkit util-linux ntfs3g 
+
+mkdir -p /tmp/build-dir
+cd /tmp/build-dir
+cp -a /shared/* .
+./build
+mv windows-vm.img.gz /output
+
+exit 0
